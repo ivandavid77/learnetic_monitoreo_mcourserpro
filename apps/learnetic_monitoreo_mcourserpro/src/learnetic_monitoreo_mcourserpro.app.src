@@ -1,0 +1,16 @@
+{application, learnetic_monitoreo_mcourserpro,
+ [{description, "Monitoreo de calificaciones y tiempos de respuesta para los alumnos registrados en mcourserpro"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { learnetic_monitoreo_mcourserpro_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
+ ]}.
