@@ -16,4 +16,6 @@ _build
 .idea
 rebar3.crashdump
 python_framework
-*.yaml
+**/priv/config/**
+**/priv/config/**
+
