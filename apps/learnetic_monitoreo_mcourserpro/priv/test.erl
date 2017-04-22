@@ -11,12 +11,14 @@ start() ->
 
 get_users({Port, Users}) ->
     receive
-        {Port, {exit_status, 1}} -> io:format("Reintentar");
+        {Port, {exit_status, 1}} ->
+            io:format("Reintentar");
         {Port, {exit_status, 0}} ->
-            % TODO: generar servidor que espera a que terminen el resto
-            query_users(Users);
-        {Port, {data, Data}} -> get_users({Port, [binary_to_term(Data)|Users]})
+            wait_for_completion(Users);
+        {Port, {data, Data}} ->
+            get_users({Port, [binary_to_term(Data)|Users]})
     end.
+
 
 query_users([]) -> ok;
 query_users([User|Users]) ->
@@ -30,5 +32,5 @@ query_user(User) ->
     Port = open_port({spawn, Cmd}, Opts),
     receive
         {Port, {exit_status, 1}} -> query_user(User);
-        {Port, {exit_status, 0}} -> ok
+        {Port, {exit_status, 0}} ->
     end.

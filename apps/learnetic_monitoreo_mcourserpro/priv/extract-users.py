@@ -7,7 +7,7 @@ import pymysql.cursors
 import erlang
 
 
-def get_config(filename):
+def get_config():
     with open('config/database.yaml') as f:
         return yaml.load(f.read())
 
@@ -29,7 +29,7 @@ def get_connection(config):
                            cursorclass=pymysql.cursors.DictCursor)
 
 if __name__ == '__main__':
-    config = get_config('config.yaml')
+    config = get_config()
     conn = get_connection(config)
     output = os.fdopen(4, 'wb')
     with conn.cursor() as cursor:

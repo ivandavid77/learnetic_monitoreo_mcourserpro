@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 import httplib2
 import os
-import sys
 import io
-#import openpyxl
-#import xlrd
+import yaml
+import pymysql.cursors
 from googleapiclient.http import MediaIoBaseDownload
 from apiclient import discovery
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
-
 
 #https://developers.google.com/resources/api-libraries/documentation/sheets/v4/python/latest/sheets_v4.spreadsheets.html
 #https://developers.google.com/resources/api-libraries/documentation/drive/v3/python/latest/drive_v3.files.html#list
@@ -22,7 +20,7 @@ except ImportError:
     flags = None
 
 # If modifying these scopes, delete your previously saved credentials
-# at ~/.credentials/sheets.googleapis.com-python-quickstart.json
+# at ~/.credentials/drive_and_sheets.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata',
           'https://www.googleapis.com/auth/drive',
           'https://www.googleapis.com/auth/drive.file',
@@ -30,13 +28,18 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata',
 CLIENT_SECRET_FILE = './config/client_secret.json'
 APPLICATION_NAME = 'DurangoDrive'
 
-def create_record(username, unit, exercise, score):
-    return {
-        'username': username,
-        'unit': unit,
-        'exercise': exercise,
-        'score': 0
-    }
+def get_config():
+    with open('config/database.yaml') as f:
+        return yaml.load(f.read())
+
+def get_connection(config):
+    db = config['db']
+    return pymysql.connect(db=db['name'],
+                           user=db['user'],
+                           password=db['password'],
+                           host=db['host'],
+                           charset='utf8mb4',
+                           cursorclass=pymysql.cursors.DictCursor)
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -109,25 +112,63 @@ def main():
                                 'unidad_3_evaluacion_final': get_row(45, row),
                                 'unidad_3_foro_de_discusion': get_row(46, row),
                             })
-            """
+    config = get_config()
+    conn = get_connection(config)
+    with conn.cursor() as cursor:
+        for rec in db:
+            cursor.execute(('SELECT 1 FROM durango_datos_drive '
+                            'WHERE username=%s'),
+                            (rec['username'],))
+            operation = ''
+            where = ''
+            operation_params = []
+            params = [
+                rec['unidad_1_reflexion_inicial'],
+                rec['unidad_1_ejercicio_1'],
+                rec['unidad_1_ejercicio_6'],
+                rec['unidad_1_ejercicio_7'],
+                rec['unidad_1_evaluacion_final'],
+                rec['unidad_1_foro_de_discusion'],
+                rec['unidad_2_ejercicio_6'],
+                rec['unidad_2_ejercicio_7'],
+                rec['unidad_2_ejercicio_9'],
+                rec['unidad_2_evaluacion_final'],
+                rec['unidad_2_foro_de_discusion'],
+                rec['unidad_3_ejercicio_2'],
+                rec['unidad_3_ejercicio_4'],
+                rec['unidad_3_ejercicio_5'],
+                rec['unidad_3_evaluacion_final'],
+                rec['unidad_3_foro_de_discusion']
+            ]
+            if cursor.rowcount == 0:
+                # Actualización
+                operation = 'INSERT INTO durango_datos_drive SET username=%s,'
+                params = [rec['username']] + params
             else:
-                request = drive_service.files().get_media(fileId=item['id'])
-                fh = io.BytesIO()
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while done is False:
-                    status, done = downloader.next_chunk()
-                if name.endswith('xlsx'):
-                    wb = openpyxl.load_workbook(filename = fh)
-                    print(wb.get_sheet_names())
-                elif name.endswith('xls'):
-                    wb = xlrd.open_workbook(file_contents=fh.getvalue())
-                    for s in wb.sheets():
-                        print(s.name)
-            """
-    for record in db:
-        if record['username'] in ['DURGLCRDUR0377b','DURGLCRDUR0380b']:
-            print(str(record)+'\n')
+                # Inserción
+                operation = 'UPDATE durango_datos_drive SET '
+                where = ' WHERE username=%s'
+                params = params + [rec['username']]
+            sql = operation+(
+                'unidad_1_reflexion_inicial=%s,'
+                'unidad_1_ejercicio_1=%s,'
+                'unidad_1_ejercicio_6=%s,'
+                'unidad_1_ejercicio_7=%s,'
+                'unidad_1_evaluacion_final=%s,'
+                'unidad_1_foro_de_discusion=%s,'
+                'unidad_2_ejercicio_6=%s,'
+                'unidad_2_ejercicio_7=%s,'
+                'unidad_2_ejercicio_9=%s,'
+                'unidad_2_evaluacion_final=%s,'
+                'unidad_2_foro_de_discusion=%s,'
+                'unidad_3_ejercicio_2=%s,'
+                'unidad_3_ejercicio_4=%s,'
+                'unidad_3_ejercicio_5=%s,'
+                'unidad_3_evaluacion_final=%s,'
+                'unidad_3_foro_de_discusion=%s')+where
+            cursor.execute(sql, tuple(params))
+    conn.commit()
+    conn.close()
 
 if __name__ == '__main__':
     main()

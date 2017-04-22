@@ -4,7 +4,7 @@ import yaml
 import pymysql.cursors
 from google.cloud import bigquery
 
-def get_config(filename):
+def get_config():
     with open('config/database.yaml') as f:
         return yaml.load(f.read())
 
@@ -22,19 +22,19 @@ def create_record(username, unit, exercise):
         'modified_date': '2016-01-01 00:00:00 UTC',
         'score': 0,
         'total_time': 0,
-        'page_score__score': 0,
-        'page_score__total_time': 0}
+        'mistake_count': 0
+    }
 
 def initialize_units(username, db, index):
     # UNIDAD 1: Educación multigrado
     create_unit(u'unidad 1', [u'ejercicio 2', u'ejercicio 3', u'ejercicio 5a', u'ejercicio 5b', u'ejercicio 5c',
-                             u'reflexión inicial', u'ejercicio 1', u'ejercicio 6', u'ejercicio 7', u'evaluación final'], username, db, index)
+                             u'reflexión inicial', u'ejercicio 1', u'ejercicio 6', u'ejercicio 7', u'evaluación final', u'foro de discusión'], username, db, index)
     # UNIDAD 2: Educación multigrado
     create_unit(u'unidad 2', [u'ejercicio 3', u'ejercicio 4', u'ejercicio 5',
-                             u'ejercicio 6', u'ejercicio 7', u'ejercicio 9', u'evaluación final'], username, db, index)
+                             u'ejercicio 6', u'ejercicio 7', u'ejercicio 9', u'evaluación final', u'foro de discusión'], username, db, index)
     # UNIDAD 3: Educación multigrado
     create_unit(u'unidad 3', [u'ejercicio 1', u'ejercicio 3',
-                             u'ejercicio 2', u'ejercicio 4', u'ejercicio 5', u'evaluación final'], username, db, index)
+                             u'ejercicio 2', u'ejercicio 4', u'ejercicio 5', u'evaluación final', u'foro de discusión'], username, db, index)
 
 def get_connection(config):
     db = config['db']
@@ -45,21 +45,30 @@ def get_connection(config):
                            charset='utf8mb4',
                            cursorclass=pymysql.cursors.DictCursor)
 
+def invalid_unit(unit_name, exercise):
+    if ((unit_name == u'unidad 1' and exercise == u'ejercicio 4')
+    or (unit_name == u'unidad 2' and exercise == u'ejercicio 1') 
+    or (unit_name == u'unidad 2' and exercise == u'ejercicio 2')
+    or (unit_name == u'unidad 2' and exercise == u'ejercicio 8')
+    or (unit_name == u'unidad 3' and exercise == u'ejercicio 1')):
+        True
+    else:
+        False
+
 if __name__ == '__main__':
     # Inicializacion
     username = sys.argv[1] # demoalumno2
     db = []
     index = {}
     initialize_units(username, db, index)
-    config = get_config('config.yaml')
+    config = get_config()
 
     # Obtener los datos almacenados en la base de datos y modificar las bases de datos actuales en memoria
     conn = get_connection(config)
 
     with conn.cursor() as cursor:
         cursor.execute((
-            'SELECT unit, exercise, modified_date, score, total_time,'
-            'page_score__score, page_score__total_time '
+            'SELECT unit, exercise, modified_date, score, total_time, mistake_count '
             'FROM durango_datos_bigquery '
             'WHERE username = %s'), username)
         results = cursor.fetchall()
@@ -68,16 +77,13 @@ if __name__ == '__main__':
             record['modified_date'] = row['modified_date']
             record['score'] = row['score']
             record['total_time'] = row['total_time']
-            record['page_score__absolute_score'] = row['page_score__absolute_score']
-            record['page_score__max_score'] = row['page_score__max_score']
-            record['page_score__score'] = row['page_score__score']
-            record['page_score__total_time'] = row['page_score__total_time']
+            record['mistake_count'] = row['mistake_count']
     conn.close()
 
     # Obtener los ejercicios que se califican en automático y actualizar cuando sea necesario las db en memoria
     client = bigquery.Client()
     query = (
-        'SELECT modified_date, score, total_time, lesson_title, page_score '
+        'SELECT modified_date, score, total_time, lesson_title, page_score, mistake_count '
         'FROM `mcourser-mexico-he.scores.scores_2017*` '
         'WHERE username = "{}"').format(username)
     query_results = client.run_sync_query(query)
@@ -85,13 +91,14 @@ if __name__ == '__main__':
     query_results.run()
     if query_results.complete:
         for row in query_results.rows:
+            lesson_title = row[3]
+            if lesson_title == None:
+                continue
             modified_date = row[0].strftime('%Y-%m-%d %H:%M:%S UTC')
             score = row[1]
             total_time = row[2]
-            lesson_title = row[3]
             page_score = row[4]
-            print('lesson_title')
-            print(lesson_title)
+            mistake_count = row[5]
             tmp = lesson_title.split(':')
             if isinstance(tmp, list) and len(tmp) == 2:
                 unit_name = tmp[0].lower().strip()
@@ -103,14 +110,17 @@ if __name__ == '__main__':
             if lesson_title in [u'UNIDAD 1: Educación multigrado', u'UNIDAD 2: Educación multigrado', u'UNIDAD 3: Educación multigrado'] and len(page_score) > 0:
                 for ps in page_score:
                     exercise = (ps['page_name']).lower().strip()
+                    if invalid_unit(unit_name.encode('utf8'), exercise.encode('utf8')):
+                        continue
                     record = index[unit_name+exercise]
                     if modified_date > record['modified_date']:
                         record['modified_date'] = modified_date
-                        record['score'] = score
-                        record['total_time'] = total_time
-                        record['page_score__score'] = ps['score']
-                        record['page_score__total_time'] = ps['total_time']
+                        record['score'] = ps['score']
+                        record['total_time'] = ps['total_time']
+                        record['mistake_count'] = ps['mistake_count']
             elif lesson_title not in [u'UNIDAD 1: Educación multigrado', u'UNIDAD 2: Educación multigrado', u'UNIDAD 3: Educación multigrado']:
+                if invalid_unit(unit_name, exercise):
+                    continue
                 record = index[unit_name+exercise]
                 if total_time == 0:
                     continue
@@ -118,8 +128,7 @@ if __name__ == '__main__':
                     record['modified_date'] = modified_date
                     record['score'] = score
                     record['total_time'] = total_time
-                    record['page_score__score'] = score
-                    record['page_score__total_time'] = total_time
+                    record['mistake_count'] = mistake_count
     elif query_results.errors:
         print(str(query_results.errors))
         sys.exit(1)
@@ -138,8 +147,7 @@ if __name__ == '__main__':
                 rec['modified_date'],
                 rec['score'],
                 rec['total_time'],
-                rec['page_score__score'],
-                rec['page_score__total_time']
+                rec['mistake_count']
             ]
             if cursor.rowcount == 0:
                 # Actualización
@@ -154,8 +162,7 @@ if __name__ == '__main__':
                 'modified_date=%s,'
                 'score=%s,'
                 'total_time=%s,'
-                'page_score__score=%s,'
-                'page_score__total_time=%s')+where
+                'mistake_count=%s')+where
             cursor.execute(sql, tuple(params))
     conn.commit()
     conn.close()
