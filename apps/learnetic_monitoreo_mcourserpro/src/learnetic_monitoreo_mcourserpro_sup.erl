@@ -8,7 +8,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, start_process_pipeline/0, stop_process_pipeline/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -24,6 +24,10 @@ start_link() ->
 
 start_process_pipeline() ->
     supervisor:start_child(?SERVER, supervisor_child(process_pipeline_sup)).
+
+stop_process_pipeline() ->
+    supervisor:terminate_child(?SERVER, process_pipeline_sup),
+    supervisor:delete_child(?SERVER, process_pipeline_sup).
 
 %%====================================================================
 %% Supervisor callbacks

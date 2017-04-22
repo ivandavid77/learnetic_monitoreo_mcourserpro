@@ -83,20 +83,20 @@ if __name__ == '__main__':
             exercises = cursor.fetchall()
             for ex in exercises:
                 if ex['unit'] == u'unidad 1':
-                    tiempos['unidad_1'] += row['page_score__total_time']
-                    equivocaciones['unidad_1'] += row['mistake_count']
+                    tiempos['unidad_1'] += ex['total_time']
+                    equivocaciones['unidad_1'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 2', u'ejercicio 3', u'ejercicio 5a', u'ejercicio 5b', u'ejercicio 5c']:
-                        calificaciones['unidad_1'] += row['page_score__score'] * 0.1/10
+                        calificaciones['unidad_1'] += ex['score'] * 0.1/10
                 elif ex['unit'] == u'unidad 2':
-                    tiempos['unidad_2'] += row['page_score__total_time']
-                    equivocaciones['unidad_2'] += row['mistake_count']
+                    tiempos['unidad_2'] += ex['total_time']
+                    equivocaciones['unidad_2'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 3', u'ejercicio 4', u'ejercicio 5']:
-                        calificaciones['unidad_2'] += row['page_score__score'] * 0.1/10
+                        calificaciones['unidad_2'] += ex['score'] * 0.1/10
                 elif ex['unit'] == u'unidad 3':
-                    tiempos['unidad_3'] += row['page_score__total_time']
-                    equivocaciones['unidad_3'] += row['mistake_count']
+                    tiempos['unidad_3'] += ex['total_time']
+                    equivocaciones['unidad_3'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 1', u'ejercicio 3']:
-                        calificaciones['unidad_3'] += row['page_score__score'] * 0.1/10
+                        calificaciones['unidad_3'] += ex['score'] * 0.1/10
             conn_insercion = get_connection(config)
             with conn_insercion.cursor() as cursor_insercion:
                 for unit in ['unidad_1', 'unidad_2', 'unidad_3']:
@@ -114,7 +114,7 @@ if __name__ == '__main__':
                                 unit,
                                 calificaciones[unit],
                                 equivocaciones[unit],
-                                tiempos[unit]
+                                tiempos[unit]/1000/3600
                             )
                         )
                     else:
@@ -127,7 +127,7 @@ if __name__ == '__main__':
                             (
                                 calificaciones[unit],
                                 equivocaciones[unit],
-                                tiempos[unit],
+                                tiempos[unit]/1000/3600,
                                 username,
                                 unit
                             )

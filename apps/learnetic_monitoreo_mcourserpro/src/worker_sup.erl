@@ -55,16 +55,12 @@ start_worker(User) ->
 -spec(init(Args :: term()) ->
     {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
         MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
-        [ChildSpec :: supervisor:child_spec()]
+        []
     }} |
     ignore |
     {error, Reason :: term()}).
 init([]) ->
-    RestartStrategy = simple_one_for_one,
-    MaxRestarts = 1000,
-    MaxSecondsBetweenRestarts = 3600,
-    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    {ok, {SupFlags, []}}.
+    {ok, { {one_for_one, 10, 3600}, []} }.
 
 %%%===================================================================
 %%% Internal functions

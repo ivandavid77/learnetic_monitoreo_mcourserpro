@@ -39,7 +39,7 @@
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link(?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -115,14 +115,15 @@ handle_cast(_Request, State) ->
 handle_info(Info, State) ->
     Port = State#state.port_get_users,
     case Info of
-        {Port, {data, User}} ->
+        {Port, {data, BinaryUser}} ->
+            User = binary_to_term(BinaryUser),
             worker_sup:start_worker(User),
-            {noreply, State#state{users=[binary_to_term(User) | State#state.users]}};
+            {noreply, State#state{users=[User | State#state.users]}};
         {Port, {exit_status, 0}} ->
             process_data:do_data_collection(State#state.users),
-            {stop, normal};
+            {stop, normal, State};
         {Port, {exit_status, 1}} ->
-            {stop, {error, "Not could get active users from database"}}
+            {stop, {error, "Not could get active users from database"}, State}
     end.
 
 %%--------------------------------------------------------------------

@@ -33,7 +33,7 @@ if __name__ == '__main__':
     conn = get_connection(config)
     output = os.fdopen(4, 'wb')
     with conn.cursor() as cursor:
-        cursor.execute('SELECT username FROM durango_alumnos WHERE username NOT LIKE "multigrado%" LIMIT 2')
+        cursor.execute('SELECT username FROM durango_alumnos WHERE username NOT LIKE "multigrado%"')
         results = cursor.fetchall()
         for row in results:
             send(row['username'], output)

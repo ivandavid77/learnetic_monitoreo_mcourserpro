@@ -39,7 +39,7 @@
 -spec(start_link(User :: string()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(User) ->
-    gen_server:start_link(?MODULE, [], User).
+    gen_server:start_link(?MODULE, User, []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -62,7 +62,7 @@ start_link(User) ->
 init(User) ->
     Dir = code:priv_dir(learnetic_monitoreo_mcourserpro),
     Cmd = "python_framework/bin/python extract-bigquery.py " ++ User,
-    Opts = [use_stdio, exit_status, binary, {cd, Dir}],
+    Opts = [nouse_stdio, exit_status, binary, {packet, 4}, {cd, Dir}],
     Port = open_port({spawn, Cmd}, Opts),
     {ok, #state{port_extract_bigquery_data=Port, user=User}}.
 
@@ -117,10 +117,10 @@ handle_info(Info, State) ->
     User = State#state.user,
     case Info of
         {Port, {exit_status, 1}} ->
-            {stop, {error, "Error collecting bigquery data for user: " ++ User}};
+            {stop, {error, "Error collecting bigquery data for user: " ++ User}, State};
         {Port, {exit_status, 0}} ->
             process_data:data_collected_for(User),
-            {stop, normal}
+            {stop, normal, State}
     end.
 
 %%--------------------------------------------------------------------

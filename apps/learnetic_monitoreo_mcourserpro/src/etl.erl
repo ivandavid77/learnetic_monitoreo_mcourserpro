@@ -4,15 +4,15 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 20. Apr 2017 4:16 PM
+%%% Created : 22. Apr 2017 9:38 AM
 %%%-------------------------------------------------------------------
--module(process_data).
+-module(etl).
 -author("ivandavid77").
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, do_data_collection/1, data_collected_for/1]).
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {users_received = [], total_users = [], waiting_for_users = false}).
+-record(state, {port}).
 
 %%%===================================================================
 %%% API
@@ -39,13 +39,7 @@
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-do_data_collection(Users) ->
-    gen_server:cast(?SERVER, {total_users, Users}).
-
-data_collected_for(User) ->
-    gen_server:cast(?SERVER, {user_received, User}).
+    gen_server:start_link(?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -66,7 +60,11 @@ data_collected_for(User) ->
     {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term()} | ignore).
 init([]) ->
-    {ok, #state{}}.
+    Dir = code:priv_dir(learnetic_monitoreo_mcourserpro),
+    Cmd = "python_framework/bin/python etl.py",
+    Opts = [nouse_stdio, exit_status, binary, {packet, 4}, {cd, Dir}],
+    Port = open_port({spawn, Cmd}, Opts),
+    {ok, #state{port=Port}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -97,24 +95,8 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({total_users, Users}, #state{users_received=UsersReceived}) ->
-    case remove_users_from_total_users(UsersReceived, Users) of
-        [] ->
-            process_pipeline_sup:start_google_drive_collection(),
-            {stop, normal, #state{}};
-        UsersNotReceived ->
-            {noreply, #state{total_users=UsersNotReceived, waiting_for_users = true}}
-    end;
-handle_cast({user_received, User}, #state{users_received=UsersReceived, waiting_for_users=false} = State) ->
-    {noreply, State#state{users_received = [User|UsersReceived]}};
-handle_cast({user_received, User}, #state{total_users=Users, waiting_for_users=true}) ->
-    case remove_users_from_total_users([User], Users) of
-        [] ->
-            process_pipeline_sup:start_google_drive_collection(),
-            {stop, normal, #state{}};
-        UsersNotReceived ->
-            {noreply, #state{total_users=UsersNotReceived, waiting_for_users = true}}
-    end.
+handle_cast(_Request, State) ->
+    {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -130,8 +112,14 @@ handle_cast({user_received, User}, #state{total_users=Users, waiting_for_users=t
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info(Info, State) ->
+    Port = State#state.port,
+    case Info of
+        {Port, {exit_status, 1}} ->
+            {stop, {error, "Error executing etl"}, State};
+        {Port, {exit_status, 0}} ->
+            {stop, normal, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -147,6 +135,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
+    learnetic_monitoreo_mcourserpro_sup:stop_process_pipeline(),
     ok.
 
 %%--------------------------------------------------------------------
@@ -166,10 +155,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-remove_users_from_total_users(_, []) ->
-    [];
-remove_users_from_total_users([], TotalUsers) ->
-    TotalUsers;
-remove_users_from_total_users([Received|RestOfReceived], TotalUsers) ->
-    remove_users_from_total_users(RestOfReceived, lists:delete(Received, TotalUsers)).
-

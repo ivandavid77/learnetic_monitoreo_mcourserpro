@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, start_google_drive_collection/0, start_etl/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -33,6 +33,12 @@
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+start_google_drive_collection() ->
+    supervisor:start_child(?SERVER, worker_child(google_drive_collection)).
+
+start_etl()->
+    supervisor:start_child(?SERVER, worker_child(etl)).
 
 %%%===================================================================
 %%% Supervisor callbacks
