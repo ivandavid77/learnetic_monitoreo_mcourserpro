@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 20. Apr 2017 4:16 PM
 %%%-------------------------------------------------------------------
--module(process_data).
+-module(sync_workers).
 -author("ivandavid77").
 
 -behaviour(gen_server).
@@ -97,24 +97,12 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({total_users, Users}, #state{users_received=UsersReceived}) ->
-    case remove_users_from_total_users(UsersReceived, Users) of
-        [] ->
-            process_pipeline_sup:start_google_drive_collection(),
-            {stop, normal, #state{}};
-        UsersNotReceived ->
-            {noreply, #state{total_users=UsersNotReceived, waiting_for_users = true}}
-    end;
+handle_cast({total_users, TotalUsers}, #state{users_received=UsersReceived}) ->
+    remove_from_total_users(UsersReceived, TotalUsers);
 handle_cast({user_received, User}, #state{users_received=UsersReceived, waiting_for_users=false} = State) ->
     {noreply, State#state{users_received = [User|UsersReceived]}};
-handle_cast({user_received, User}, #state{total_users=Users, waiting_for_users=true}) ->
-    case remove_users_from_total_users([User], Users) of
-        [] ->
-            process_pipeline_sup:start_google_drive_collection(),
-            {stop, normal, #state{}};
-        UsersNotReceived ->
-            {noreply, #state{total_users=UsersNotReceived, waiting_for_users = true}}
-    end.
+handle_cast({user_received, User}, #state{total_users=TotalUsers, waiting_for_users=true}) ->
+    remove_from_total_users([User], TotalUsers).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -166,10 +154,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-remove_users_from_total_users(_, []) ->
-    [];
-remove_users_from_total_users([], TotalUsers) ->
-    TotalUsers;
-remove_users_from_total_users([Received|RestOfReceived], TotalUsers) ->
-    remove_users_from_total_users(RestOfReceived, lists:delete(Received, TotalUsers)).
 
+remove_from_total_users(_, []) ->
+    process_pipeline_sup:start_process(google_drive_collection),
+    process_pipeline_sup:stop_process(generate_workers),
+    process_pipeline_sup:stop_process(worker_sup),
+    {stop, normal, #state{}};
+remove_from_total_users([], TotalUsers) ->
+    {noreply, #state{total_users=TotalUsers, waiting_for_users = true}};
+remove_from_total_users([Received|RestOfReceived], TotalUsers) ->
+    remove_from_total_users(RestOfReceived, lists:delete(Received, TotalUsers)).

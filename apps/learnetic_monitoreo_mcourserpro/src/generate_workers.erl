@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, worker_finished/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {port_get_users, users}).
+-record(state, {port_get_users, pending=[], total_users=[], max_concurrent=15, current=0}).
 
 %%%===================================================================
 %%% API
@@ -39,7 +39,11 @@
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+worker_finished() ->
+    gen_server:cast(?SERVER, worker_finished).
+
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -64,7 +68,7 @@ init([]) ->
     Cmd = "python_framework/bin/python extract-users.py",
     Opts = [nouse_stdio, exit_status, binary, {packet, 4}, {cd, Dir}],
     Port = open_port({spawn, Cmd}, Opts),
-    {ok, #state{port_get_users=Port, users=[]}}.
+    {ok, #state{port_get_users=Port}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -95,8 +99,13 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_cast(worker_finished, #state{pending=[], current=Current} = State) ->
+    {noreply, State#state{current=Current-1}};
+handle_cast(worker_finished, #state{pending=[User|RestOfPending]} = State) ->
+    worker_sup:start_worker(User),
+    {noreply, State#state{pending=RestOfPending}}.
+
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,16 +121,22 @@ handle_cast(_Request, State) ->
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(Info, State) ->
+handle_info(Info, #state{total_users=TotalUsers , max_concurrent=Max, current=Current, pending=Pending} = State) ->
     Port = State#state.port_get_users,
     case Info of
         {Port, {data, BinaryUser}} ->
             User = binary_to_term(BinaryUser),
-            worker_sup:start_worker(User),
-            {noreply, State#state{users=[User | State#state.users]}};
+            NewTotalUsers = [User|TotalUsers],
+            case Current < Max of
+                true ->
+                    worker_sup:start_worker(User),
+                    {noreply, State#state{total_users=NewTotalUsers, current=Current+1}};
+                false ->
+                    {noreply, State#state{total_users=NewTotalUsers, pending=[User|Pending]}}
+            end;
         {Port, {exit_status, 0}} ->
-            process_data:do_data_collection(State#state.users),
-            {stop, normal, State};
+            sync_workers:do_data_collection(TotalUsers),
+            {noreply, State};
         {Port, {exit_status, 1}} ->
             {stop, {error, "Not could get active users from database"}, State}
     end.

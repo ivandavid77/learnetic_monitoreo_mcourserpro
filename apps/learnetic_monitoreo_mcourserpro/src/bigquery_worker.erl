@@ -119,7 +119,8 @@ handle_info(Info, State) ->
         {Port, {exit_status, 1}} ->
             {stop, {error, "Error collecting bigquery data for user: " ++ User}, State};
         {Port, {exit_status, 0}} ->
-            process_data:data_collected_for(User),
+            generate_workers:worker_finished(),
+            sync_workers:data_collected_for(User),
             {stop, normal, State}
     end.
 

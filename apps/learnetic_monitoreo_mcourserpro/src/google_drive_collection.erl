@@ -116,7 +116,7 @@ handle_info(Info, State) ->
     Port = State#state.port,
     case Info of
         {Port, {exit_status, 0}} ->
-            process_pipeline_sup:start_etl(),
+            process_pipeline_sup:start_process(etl),
             {stop, normal, State};
         {Port, {exit_status, 1}} ->
             {stop, {error, "Error collecting data from google drive"}, State}

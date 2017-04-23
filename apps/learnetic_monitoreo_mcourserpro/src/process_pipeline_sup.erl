@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_google_drive_collection/0, start_etl/0]).
+-export([start_link/0, start_process/1, stop_process/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -34,11 +34,12 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-start_google_drive_collection() ->
-    supervisor:start_child(?SERVER, worker_child(google_drive_collection)).
+start_process(Process)->
+    supervisor:start_child(?SERVER, worker_child(Process)).
 
-start_etl()->
-    supervisor:start_child(?SERVER, worker_child(etl)).
+stop_process(Process) ->
+    supervisor:terminate_child(?SERVER, Process),
+    supervisor:delete_child(?SERVER, Process).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -66,7 +67,7 @@ init([]) ->
     MaxRestarts = 1000,
     MaxSecondsBetweenRestarts = 3600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    ChildSpecList = [worker_child(generate_workers), supervisor_child(worker_sup), worker_child(process_data)],
+    ChildSpecList = [worker_child(generate_workers), supervisor_child(worker_sup), worker_child(sync_workers)],
     {ok, {SupFlags, ChildSpecList}}.
 
 %%%===================================================================
