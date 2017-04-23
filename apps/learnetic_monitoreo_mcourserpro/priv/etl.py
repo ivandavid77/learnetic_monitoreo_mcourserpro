@@ -44,22 +44,22 @@ if __name__ == '__main__':
         for row in results:
             username = row['username']
             calificaciones = {
-                'unidad_1': row['unidad_1_reflexion_inicial'] * 0.5/10 +
-                            row['unidad_1_ejercicio_1'] * 0.5/10 +
-                            row['unidad_1_ejercicio_6'] * 0.5/10 +
-                            row['unidad_1_ejercicio_7'] * 0.6/10 +
-                            row['unidad_1_evaluacion_final'] * 0.5/10 +
-                            row['unidad_1_foro_de_discusion'] * 0.6/10,
-                'unidad_2': row['unidad_2_ejercicio_6'] * 0.5/10 +
-                            row['unidad_2_ejercicio_7'] * 0.6/10 +
-                            row['unidad_2_ejercicio_9'] * 0.5/10 +
-                            row['unidad_2_evaluacion_final'] * 0.5/10 +
-                            row['unidad_2_foro_de_discusion'] * 0.7/10,
-                'unidad_3': row['unidad_3_ejercicio_2'] * 0.6/10 +
-                            row['unidad_3_ejercicio_4'] * 0.6/10 +
-                            row['unidad_3_ejercicio_5'] * 0.6/10 +
-                            row['unidad_3_evaluacion_final'] * 0.5/10 +
-                            row['unidad_3_foro_de_discusion'] * 0.7/10
+                'unidad_1': (row['unidad_1_reflexion_inicial'] +
+                             row['unidad_1_ejercicio_1'] +
+                             row['unidad_1_ejercicio_6']  +
+                             row['unidad_1_evaluacion_final'])/4*0.4 +
+                            row['unidad_1_ejercicio_7']*0.3 +
+                            row['unidad_1_foro_de_discusion']*0.2,
+                'unidad_2': (row['unidad_2_ejercicio_6'] +
+                             row['unidad_2_ejercicio_9'] +
+                             row['unidad_2_evaluacion_final'])/3*0.4 +
+                            row['unidad_2_ejercicio_7']*0.3 +
+                            row['unidad_2_foro_de_discusion']*0.2,
+                'unidad_3': row['unidad_3_evaluacion_final']*0.4 +
+                            (row['unidad_3_ejercicio_2'] +
+                             row['unidad_3_ejercicio_4'] +
+                             row['unidad_3_ejercicio_5'])/3*0.3 +
+                            row['unidad_3_foro_de_discusion']*0.2
             }
             tiempos = {
                 'unidad_1': 0,
@@ -81,22 +81,29 @@ if __name__ == '__main__':
                 'FROM durango_datos_bigquery '
                 'WHERE username=%s'),(row['username'],))
             exercises = cursor.fetchall()
+            tmp_unidad_1 = 0
+            tmp_unidad_2 = 0
+            tmp_unidad_3 = 0
             for ex in exercises:
                 if ex['unit'] == u'unidad 1':
                     tiempos['unidad_1'] += ex['total_time']
                     equivocaciones['unidad_1'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 2', u'ejercicio 3', u'ejercicio 5a', u'ejercicio 5b', u'ejercicio 5c']:
-                        calificaciones['unidad_1'] += ex['score'] * 0.1/10
+                        tmp_unidad_1 += ex['score']*10
                 elif ex['unit'] == u'unidad 2':
                     tiempos['unidad_2'] += ex['total_time']
                     equivocaciones['unidad_2'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 3', u'ejercicio 4', u'ejercicio 5']:
-                        calificaciones['unidad_2'] += ex['score'] * 0.1/10
+                        tmp_unidad_2 += ex['score']*10
                 elif ex['unit'] == u'unidad 3':
                     tiempos['unidad_3'] += ex['total_time']
                     equivocaciones['unidad_3'] += ex['mistake_count']
                     if ex['exercise'] in [u'ejercicio 1', u'ejercicio 3']:
-                        calificaciones['unidad_3'] += ex['score'] * 0.1/10
+                        tmp_unidad_3 += ex['score']*10
+            calificaciones['unidad_1'] += tmp_unidad_1/5*0.1
+            calificaciones['unidad_2'] += tmp_unidad_2/3*0.1
+            calificaciones['unidad_3'] += tmp_unidad_3/2*0.1
+
             conn_insercion = get_connection(config)
             with conn_insercion.cursor() as cursor_insercion:
                 for unit in ['unidad_1', 'unidad_2', 'unidad_3']:
