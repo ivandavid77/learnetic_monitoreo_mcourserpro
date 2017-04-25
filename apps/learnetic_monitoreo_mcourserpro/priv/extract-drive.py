@@ -148,7 +148,7 @@ def main():
                 'unidad_3_evaluacion_final=%s,'
                 'unidad_3_foro_de_discusion=%s')+where
             cursor.execute(sql, tuple(params))
-    conn.commit()
+            conn.commit()
     conn.close()
 
 if __name__ == '__main__':

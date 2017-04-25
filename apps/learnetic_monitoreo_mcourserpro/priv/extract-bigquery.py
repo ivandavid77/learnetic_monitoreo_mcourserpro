@@ -110,14 +110,17 @@ if __name__ == '__main__':
             if lesson_title in [u'UNIDAD 1: Educación multigrado', u'UNIDAD 2: Educación multigrado', u'UNIDAD 3: Educación multigrado'] and len(page_score) > 0:
                 for ps in page_score:
                     exercise = (ps['page_name']).lower().strip()
-                    if invalid_unit(unit_name.encode('utf8'), exercise.encode('utf8')):
+                    if invalid_unit(unit_name, exercise):
                         continue
-                    record = index[unit_name+exercise]
-                    if modified_date > record['modified_date']:
-                        record['modified_date'] = modified_date
-                        record['score'] = ps['score']
-                        record['total_time'] = ps['total_time']
-                        record['mistake_count'] = ps['mistake_count']
+                    try:
+                        record = index[unit_name+exercise]
+                        if modified_date > record['modified_date']:
+                            record['modified_date'] = modified_date
+                            record['score'] = ps['score']
+                            record['total_time'] = ps['total_time']
+                            record['mistake_count'] = ps['mistake_count']
+                    except:
+                        pass
             elif lesson_title not in [u'UNIDAD 1: Educación multigrado', u'UNIDAD 2: Educación multigrado', u'UNIDAD 3: Educación multigrado']:
                 if invalid_unit(unit_name, exercise):
                     continue
@@ -164,5 +167,5 @@ if __name__ == '__main__':
                 'total_time=%s,'
                 'mistake_count=%s')+where
             cursor.execute(sql, tuple(params))
-    conn.commit()
+            conn.commit()
     conn.close()

@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {port_get_users, pending=[], total_users=[], max_concurrent=15, current=0}).
+-record(state, {port_get_users, pending=[], total_users=[], max_concurrent=5, current=0}).
 
 %%%===================================================================
 %%% API
