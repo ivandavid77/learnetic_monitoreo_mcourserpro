@@ -2,6 +2,7 @@
 import httplib2
 import os
 import io
+import logging
 import yaml
 import pymysql.cursors
 from googleapiclient.http import MediaIoBaseDownload
@@ -49,10 +50,21 @@ def get_credentials():
 def get_row(elem, row):
     if len(row) > (elem + 1):
         try:
-            if type(row[elem]) != str:
-                return float(row[elem])
+            tipo = type(row[elem])
+            if tipo == str:
+                tmp = row[elem].strip().replace(',','.')
+                if tmp == '':
+                    return 0.0
+                else:
+                    return float(tmp)
+            elif tipo == unicode:
+                tmp = row[elem].encode('utf-8').strip().replace(',','.')
+                if tmp == '':
+                    return 0.0
+                else:
+                    return float(tmp)
             else:
-                return float(row[elem].strip())
+                return float(row[elem])
         except:
             return 0.0
     else:
@@ -69,6 +81,7 @@ def main():
         name = item['name'].encode('utf-8')
         if name.startswith('DUR') or name.startswith('JAL'):
             if item['mimeType'] == 'application/vnd.google-apps.spreadsheet':
+                logging.info('Archivo {} leído'.format(name))
                 result = sheets_service.spreadsheets().values().get(spreadsheetId=item['id'], range='C:BN').execute()
                 values = result.get('values', [])
                 for row in values:
@@ -97,7 +110,7 @@ def main():
     conn = get_connection(config)
     with conn.cursor() as cursor:
         for rec in db:
-            cursor.execute(('SELECT 1 FROM durango_datos_drive '
+            cursor.execute(('SELECT 1 FROM dgespe_datos_drive '
                             'WHERE username=%s'),
                             (rec['username'],))
             operation = ''
@@ -123,11 +136,11 @@ def main():
             ]
             if cursor.rowcount == 0:
                 # Actualización
-                operation = 'INSERT INTO durango_datos_drive SET username=%s,'
+                operation = 'INSERT INTO dgespe_datos_drive SET username=%s,'
                 params = [rec['username']] + params
             else:
                 # Inserción
-                operation = 'UPDATE durango_datos_drive SET '
+                operation = 'UPDATE dgespe_datos_drive SET '
                 where = ' WHERE username=%s'
                 params = params + [rec['username']]
             sql = operation+(
